@@ -23,7 +23,9 @@ export const register: Register = on => {
     const stream = next(e)
     for await (const chunk of stream) {
       if (chunk.kind === 'stop') end = await $.clock.now()
-      else if (start === undefined && chunk.kind !== 'engine') start = await $.clock.now()
+      // Any chunk, engine ones included: thinking that is not streamed as text still produces
+      // output tokens from the first block on, so waiting for a visible chunk overstates the speed.
+      else if (start === undefined) start = await $.clock.now()
       yield chunk
     }
     const result = await stream.result
