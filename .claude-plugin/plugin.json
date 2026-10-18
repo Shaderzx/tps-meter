@@ -1,0 +1,1 @@
+{ "name": "tps-meter", "version": "0.2.0", "description": "Shows output tokens per second on the line that closes each turn", "types": "./types/index.d.ts" }
