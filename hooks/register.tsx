@@ -3,13 +3,10 @@ import type { Register } from 'claude-code'
 
 const byDuration = atom({ plugin: 'tps-meter', key: 'byDuration' } as const, {})
 
-// Time counts only while a reply streams (first piece to stop), not the wait before it or tool runs.
+// Time counts from the moment each model request is sent until its reply ends: the wait for the first
+// token, thinking, retries and API-run tools included. Tool runs between requests are not the model's time.
 export const formatTps = (tokens: number, ms: number) =>
   ms > 0 && tokens > 0 ? `${Math.round((tokens * 1000) / ms)} tok/s` : undefined
-
-// Time the API spent running its own tools (the advisor) inside the stream window; the model wrote nothing then.
-export const serverToolMs = (uses: readonly { startedAt: number; endedAt?: number }[], start: number, end: number) =>
-  uses.reduce((sum, u) => sum + Math.max(0, Math.min(u.endedAt ?? end, end) - Math.max(u.startedAt, start)), 0)
 
 // Only recent turns' closing lines are on screen; older entries would pile up in plugin state forever.
 const MAX_TURNS = 200
@@ -27,21 +24,17 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     if (e.agentId !== undefined) return yield* next(e) // main thread only
 
-    let start: number | undefined
+    const start = await $.clock.now()
     let end: number | undefined
     const stream = next(e)
     for await (const chunk of stream) {
       if (chunk.kind === 'stop') end = await $.clock.now()
-      // Any chunk, engine ones included: thinking that is not streamed as text still produces
-      // output tokens from the first block on, so waiting for a visible chunk overstates the speed.
-      else if (start === undefined) start = await $.clock.now()
       yield chunk
     }
     const result = await stream.result
-    if (start !== undefined && end !== undefined) {
+    if (end !== undefined) {
       const t = turns.get(e.turnId) ?? { tokens: 0, ms: 0 }
-      const ms = end - start - serverToolMs(result.serverToolUses ?? [], start, end)
-      turns.set(e.turnId, { tokens: t.tokens + (result.usage?.output_tokens ?? 0), ms: t.ms + Math.max(ms, 0) })
+      turns.set(e.turnId, { tokens: t.tokens + (result.usage?.output_tokens ?? 0), ms: t.ms + end - start })
     }
     return result
   })

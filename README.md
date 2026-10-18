@@ -6,7 +6,7 @@ A Claude Code mod that shows how fast Claude writes. The line under each reply g
 ✻ Worked (98 tok/s) for 5s · done 3:41 PM
 ```
 
-The speed counts only the time Claude is actually writing. It leaves out the wait before the first token and the time tools spend running. Subagent work is not counted.
+The speed counts the time from sending each request to Claude until its reply ends, so the wait before the first token and the thinking are included. The time your tools spend running between requests is left out. Subagent work is not counted.
 
 ## Install
 
